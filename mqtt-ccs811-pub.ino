@@ -122,7 +122,7 @@ void loop() {
   if (diff() > 1000) {
     if (ccs811.dataAvailable()) {
       ccs811.readAlgorithmResults();
-      publish_message(ccs811.getCO2(), ccs811.getTVOC());
+      process_data(ccs811.getCO2(), ccs811.getTVOC());
     }
     check();
   }
@@ -132,7 +132,31 @@ void loop() {
   }
 }
 
-void publish_message(uint16_t co2, uint16_t tvoc) {
+uint32_t total_co2 = 0;
+uint32_t total_tvoc = 0;
+int total_count = 0;
+
+void process_data(uint16_t co2, uint16_t tvoc)
+{
+  if (400 <= co2 && co2 < 8192) {
+    total_co2 += co2;
+    total_tvoc += tvoc;
+    total_count ++;
+
+    if (total_count == 10) {
+      uint32_t avg_co2 = total_co2 / total_count;
+      uint32_t avg_tvos = total_tvoc / total_count;
+
+      publish_message(avg_co2, avg_tvos);
+      
+      total_co2 = 0;
+      total_tvoc = 0;
+      total_count = 0;
+    }
+  }
+}
+
+void publish_message(uint32_t co2, uint32_t tvoc) {
   char t_str[32];
   time_t t;
   struct tm *tm;
@@ -142,18 +166,18 @@ void publish_message(uint16_t co2, uint16_t tvoc) {
     t_str,
     32,
     "%d-%02d-%02dT%02d:%02d:%02d+09:00",
-    tm->tm_year+1900,
-    tm->tm_mon+1,
+    tm->tm_year + 1900,
+    tm->tm_mon + 1,
     tm->tm_mday,
     tm->tm_hour,
     tm->tm_min,
     tm->tm_sec
-    );
-  
+  );
+
   char msg[128];
   snprintf(msg, 128, "{\"co2\":%d,\"tvos\":%d,\"last_update_t\":\"%s\"}", co2, tvoc, t_str);
   Serial.println(msg);
 
-  mqtt_client.publish(mqtt_publish_topic, msg);
+  mqtt_client.publish(mqtt_publish_topic, msg, true);
 }
 
