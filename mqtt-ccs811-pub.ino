@@ -10,19 +10,25 @@
 #define PIN_SCL 12
 #define PIN_CCS811_RST 13
 
-void reboot()
-{
-  Serial.println("reboot() !!!!");
-  while (1);
+void reboot() {
+  Serial.println("REBOOT!!!!!");
+  delay(1000);
+
+  ESP.reset();
+
+  while (true) {
+    Serial.println("REBOOT!!!!!");
+    delay(500);
+  };
 }
 
 unsigned long last_updated_t;
 
-void check() {
+void clear_time() {
   last_updated_t = millis();
 }
 
-unsigned long diff() {
+unsigned long diff_time() {
   return millis() - last_updated_t;
 }
 
@@ -42,6 +48,7 @@ void reset_ccs811() {
 void setup_ccs811() {
   Serial.println("setup_ccs811() : start");
   Wire.begin(PIN_SDA, PIN_SCL); //SDA, SCL
+  Wire.setClockStretchLimit(30000);  // !!!! ATTENTION : The CCS811 clock stretch is very long time. !!!!
   reset_ccs811();
 
   CCS811Core::status rv = ccs811.begin();
@@ -51,8 +58,35 @@ void setup_ccs811() {
   }
 
   ccs811.setDriveMode(1); // read every 1sec
-  check();
+  clear_time();
   Serial.println("setup_ccs811() : success");
+}
+
+void cc811_check() {
+  uint8_t value;
+  CCS811Core::status returnCode = ccs811.readRegister( CSS811_STATUS, &value );
+  Serial.print("cc811_check() : returnCode=");
+  switch ( returnCode )
+  {
+    case CCS811Core::SENSOR_SUCCESS:
+      Serial.println("SUCCESS");
+      break;
+    case CCS811Core::SENSOR_ID_ERROR:
+      Serial.println("ID_ERROR");
+      break;
+    case CCS811Core::SENSOR_I2C_ERROR:
+      Serial.println("I2C_ERROR");
+      break;
+    case CCS811Core::SENSOR_INTERNAL_ERROR:
+      Serial.println("INTERNAL_ERROR");
+      break;
+    case CCS811Core::SENSOR_GENERIC_ERROR:
+      Serial.println("GENERIC_ERROR");
+      break;
+    default:
+      Serial.println("Unspecified error.");
+  }
+  delay(100);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -119,15 +153,16 @@ void setup() {
 
 void loop() {
   // every 1sec
-  if (diff() > 1000) {
+  if (diff_time() > 1000) {
+    cc811_check();
     if (ccs811.dataAvailable()) {
       ccs811.readAlgorithmResults();
       process_data(ccs811.getCO2(), ccs811.getTVOC());
+      clear_time();
     }
-    check();
   }
 
-  if (diff() > 7000) {
+  if (diff_time() > 7000) {
     reboot();
   }
 }
@@ -148,7 +183,7 @@ void process_data(uint16_t co2, uint16_t tvoc)
       uint32_t avg_tvos = total_tvoc / total_count;
 
       publish_message(avg_co2, avg_tvos);
-      
+
       total_co2 = 0;
       total_tvoc = 0;
       total_count = 0;
