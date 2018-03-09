@@ -48,7 +48,7 @@ void reset_ccs811() {
 void setup_ccs811() {
   Serial.println("setup_ccs811() : start");
   Wire.begin(PIN_SDA, PIN_SCL); //SDA, SCL
-  Wire.setClockStretchLimit(30000);  // !!!! ATTENTION : The CCS811 clock stretch is very long time. !!!!
+  Wire.setClockStretchLimit(30000);  // !!!! ATTENTION : The CCS811 clock stretch is very short time. !!!!
   reset_ccs811();
 
   CCS811Core::status rv = ccs811.begin();
